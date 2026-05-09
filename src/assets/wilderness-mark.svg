@@ -1,0 +1,14 @@
+<svg width="960" height="420" viewBox="0 0 960 420" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="雾岭营地">
+  <rect width="960" height="420" fill="#e7e1d1"/>
+  <path d="M0 295L116 156L205 256L312 103L429 263L526 166L626 279L721 129L960 308V420H0V295Z" fill="#687b66"/>
+  <path d="M0 331L137 215L250 327L382 167L508 326L652 213L786 330L960 224V420H0V331Z" fill="#3f5149"/>
+  <path d="M0 352C138 316 250 334 351 362C475 397 596 396 740 354C827 329 895 326 960 336V420H0V352Z" fill="#25332f"/>
+  <path d="M626 296L663 247L700 296H626Z" fill="#d9c8a7"/>
+  <path d="M640 296L663 265L687 296H640Z" fill="#8f4c37"/>
+  <rect x="659" y="294" width="9" height="38" fill="#4a3028"/>
+  <path d="M468 307C483 276 519 267 543 288C565 307 548 340 512 340C476 340 454 336 468 307Z" fill="#9f6e39"/>
+  <path d="M506 288C502 268 517 252 536 253C559 255 573 283 556 301C541 317 511 312 506 288Z" fill="#c4823d"/>
+  <path d="M176 299C206 273 239 276 266 306C227 316 196 314 176 299Z" fill="#c6b07d"/>
+  <path d="M188 296L222 254L256 298" stroke="#5b4634" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M0 80C76 47 160 45 241 70C334 99 407 96 489 61C580 22 686 31 759 70C829 107 896 107 960 87V0H0V80Z" fill="#f5f1e7" fill-opacity="0.78"/>
+</svg>
