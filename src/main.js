@@ -9,7 +9,23 @@ const gameConfig = {
   title: "雾岭之后",
   subtitle: "荒野求生文字冒险",
   cheatCode: "seltdebug",
-  maxRealChapter: 3,
+  maxChapter: 3,
+  chapterUnlocks: {
+    2: {
+      text: "完成断裂木桥，并拥有 2 条线索或临时地图。",
+      requireAny: [
+        { event: "bridge", clues: 2 },
+        { event: "bridge", hasMap: true },
+      ],
+    },
+    3: {
+      text: "完成废弃观察站，并拥有 5 条线索或信号火堆。",
+      requireAny: [
+        { event: "watchpost", clues: 5 },
+        { event: "watchpost", hasSignalFire: true },
+      ],
+    },
+  },
   resources: {
     water: { label: "清水", unit: "份" },
     food: { label: "食物", unit: "份" },
@@ -19,6 +35,14 @@ const gameConfig = {
     spark: { label: "火种", unit: "枚" },
     clues: { label: "线索", unit: "条" },
     stamina: { label: "体力", unit: "点" },
+  },
+  flags: {
+    answeredEcho: "回应过清晨回声",
+    hasMap: "临时地图",
+    hasMedkit: "草药包",
+    hasSignalFire: "信号火堆",
+    hasFilter: "简易滤水器",
+    hasShelter: "避雨棚",
   },
   initialResources: {
     water: 3,
@@ -234,6 +258,55 @@ const gameConfig = {
         },
       ],
     },
+    {
+      title: "远处的塌方声",
+      text: "午后山体深处传来沉闷断裂声，旧路可能被掩埋，也可能露出新的裂口。",
+      options: [
+        {
+          label: "趁尘土未落前查看",
+          result: "你在塌方边缘找到半截界桩，背面刻着旧编号。",
+          timeCost: 3,
+          changes: { clues: 2, stamina: -2 },
+          flags: { foundMarker: true },
+        },
+        {
+          label: "收集滚落石料",
+          result: "你避开碎坡，把可用石块搬回营地。",
+          changes: { stone: 3, stamina: -1 },
+        },
+        {
+          label: "封住危险入口",
+          result: "你用木枝和石块标出危险边界，之后绕行会更稳。",
+          changes: { wood: -2, stone: -1 },
+          flags: { sealedCollapse: true },
+          requireAny: [{ wood: 2, stone: 1 }],
+        },
+      ],
+    },
+    {
+      title: "旧营火余烬",
+      text: "一圈被雨打散的灰烬藏在灌木后，像是有人比你更早在这里等过。",
+      options: [
+        {
+          label: "翻找灰烬",
+          result: "灰烬底下压着一枚没烧尽的火种和几片防水布。",
+          changes: { spark: 1, herbs: 1 },
+        },
+        {
+          label: "追着脚印深入",
+          result: "脚印在一面石壁前消失，只留下细小的刻痕。",
+          timeCost: 3,
+          changes: { clues: 2, food: -1, stamina: -1 },
+          flags: { tracedOldCamp: true },
+        },
+        {
+          label: "把余烬彻底掩埋",
+          result: "你不想让任何东西循着烟味找到营地。",
+          changes: { stamina: 1 },
+          flags: { buriedOldFire: true },
+        },
+      ],
+    },
   ],
   storyEvents: [
     {
@@ -270,7 +343,7 @@ const gameConfig = {
       id: "watchpost",
       chapter: 2,
       title: "废弃观察站",
-      text: "第二个真实日后，雾线退到山腰。你在高处看见一座废弃观察站，里面可能有离开的答案。",
+      text: "线索把你带到山腰。雾线后露出一座废弃观察站，里面可能有离开的答案。",
       options: [
         {
           label: "修好旧电台",
@@ -297,10 +370,72 @@ const gameConfig = {
       ],
     },
     {
+      id: "ravine",
+      chapter: 2,
+      title: "裂谷绳梯",
+      text: "观察站后的旧绳梯垂向裂谷。谷底有金属反光，也有被雨水磨光的坠落痕迹。",
+      options: [
+        {
+          label: "用绳梯下到谷底",
+          result: "你在谷底找到信标维护牌，确认山脊背面还有一条窄路。",
+          changes: { clues: 2, stamina: -2 },
+          flags: { ravineRoute: true },
+          requireAny: [{ hasMap: true }, { stamina: 7 }],
+          timeCost: 4,
+        },
+        {
+          label: "拆下绳梯材料",
+          result: "你没有下谷，而是把还能用的木节和绳结带回营地。",
+          changes: { wood: 2, herbs: 1 },
+          flags: { strippedRavine: true },
+          timeCost: 2,
+        },
+        {
+          label: "强行攀下湿滑岩壁",
+          result: "岩壁在你脚下崩开，雾从裂谷里升起，吞没了最后的火光。",
+          changes: { stamina: -4 },
+          flags: { finalChoice: "ravineFall" },
+          timeCost: 1,
+          endingId: "lost",
+        },
+      ],
+    },
+    {
+      id: "stoneDoor",
+      chapter: 3,
+      title: "石门回声",
+      text: "旧信标下方有一扇半掩的石门。门缝里传出规律敲击，像有人在里面回应你的每一次选择。",
+      options: [
+        {
+          label: "按记录本节奏回应",
+          result: "石门缓慢开启，里面不是出口，而是一间仍在运转的旧中继室。",
+          changes: { clues: 2, spark: -1 },
+          flags: { relayRoomOpen: true },
+          requireAny: [{ clues: 6, spark: 1 }, { answeredEcho: true, spark: 1 }],
+          timeCost: 3,
+        },
+        {
+          label: "封住石门继续上行",
+          result: "你用碎石压住门缝，把注意力重新放回山脊路线。",
+          changes: { stone: -2, stamina: -1 },
+          flags: { sealedStoneDoor: true },
+          requireAny: [{ stone: 2 }],
+          timeCost: 2,
+        },
+        {
+          label: "独自走进门后深处",
+          result: "石门在身后合上。雾岭没有放你离开，却把所有答案都留给了你。",
+          flags: { finalChoice: "keeper" },
+          timeCost: 2,
+          endingId: "keeper",
+        },
+      ],
+    },
+    {
       id: "beacon",
       chapter: 3,
       title: "山脊信标",
-      text: "第三个真实日后，最终路线开放。雾岭最高处露出废弃信标，你必须决定怎么离开这里。",
+      text: "关键路线已经拼齐。雾岭最高处露出废弃信标，你必须决定怎么离开这里。",
       options: [
         {
           label: "点燃信号火堆",
@@ -357,6 +492,14 @@ const gameConfig = {
       title: "雾线合拢",
       text: "水和食物见底，体力也被山路耗尽。雾线从营地外合拢，你只能记下最后一条模糊的方向。",
     },
+    lost: {
+      title: "裂谷无声",
+      text: "你选择了最短的下行路线。裂谷吞掉脚步声，也吞掉了雾外传来的最后一点光。",
+    },
+    keeper: {
+      title: "门后的守望者",
+      text: "你走进旧中继室，接过仍在重复的求救码。离开的路没有消失，只是你决定先让后来者听见回应。",
+    },
   },
 };
 
@@ -372,7 +515,7 @@ function createDefaultSave() {
   return {
     version: CURRENT_SAVE_VERSION,
     startedAtDate: todayKey(),
-    realChapterOverride: null,
+    chapterOverride: null,
     gameDay: 1,
     gameHour: 8,
     resources: { ...gameConfig.initialResources },
@@ -407,7 +550,7 @@ function normalizeSave(save) {
     if (Number.isFinite(value)) resources[key] = Math.max(0, value);
   }
   const defaults = createDefaultSave();
-  const realChapterOverride = Number(save.realChapterOverride);
+  const chapterOverride = Number(save.chapterOverride ?? save.realChapterOverride);
   const knownRecipeIds = gameConfig.recipes.map((item) => item.id);
   const knownStoryIds = gameConfig.storyEvents.map((item) => item.id);
   const activeDailyEvent =
@@ -428,10 +571,11 @@ function normalizeSave(save) {
     startedAtDate: /^\d{4}-\d{2}-\d{2}$/.test(save.startedAtDate || "")
       ? save.startedAtDate
       : defaults.startedAtDate,
-    realChapterOverride:
-      realChapterOverride >= 1 && realChapterOverride <= gameConfig.maxRealChapter
-        ? realChapterOverride
+    chapterOverride:
+      chapterOverride >= 1 && chapterOverride <= gameConfig.maxChapter
+        ? chapterOverride
         : null,
+    realChapterOverride: undefined,
     gameDay: Math.max(1, Number(save.gameDay) || 1),
     gameHour: Math.max(0, Math.min(23, Number(save.gameHour) || 8)),
     resources,
@@ -472,19 +616,28 @@ function todayKey() {
   return `${year}-${month}-${day}`;
 }
 
-function daysBetween(startDate, endDate) {
-  const start = new Date(`${startDate}T00:00:00`);
-  const end = new Date(`${endDate}T00:00:00`);
-  const diff = end.getTime() - start.getTime();
-  return Math.max(0, Math.floor(diff / 86400000));
+function storyTitle(id) {
+  return gameConfig.storyEvents.find((event) => event.id === id)?.title || id;
 }
 
-function getRealChapter() {
-  if (state.realChapterOverride) return state.realChapterOverride;
-  return Math.min(
-    gameConfig.maxRealChapter,
-    daysBetween(state.startedAtDate, todayKey()) + 1,
-  );
+function flagLabel(id) {
+  return gameConfig.flags[id] || id;
+}
+
+function canUnlockChapter(chapter) {
+  if (chapter <= 1) return true;
+  const unlock = gameConfig.chapterUnlocks[chapter];
+  return Boolean(unlock && hasRequirements(unlock.requireAny));
+}
+
+function getUnlockedChapter() {
+  if (state.chapterOverride) return state.chapterOverride;
+  let chapter = 1;
+  for (let next = 2; next <= gameConfig.maxChapter; next += 1) {
+    if (!canUnlockChapter(next)) break;
+    chapter = next;
+  }
+  return chapter;
 }
 
 function resourceLabel(id) {
@@ -521,6 +674,7 @@ function hasRequirements(requireAny) {
   if (!requireAny || requireAny.length === 0) return true;
   return requireAny.some((requirement) =>
     Object.entries(requirement).every(([key, value]) => {
+      if (key === "event") return state.eventHistory.includes(String(value));
       if (key.startsWith("has") || typeof value === "boolean") {
         return Boolean(state.flags[key]) === Boolean(value);
       }
@@ -535,7 +689,10 @@ function formatRequirement(requireAny) {
     .map((requirement) =>
       Object.entries(requirement)
         .map(([key, value]) => {
-          if (key.startsWith("has")) return value ? "需要对应物品" : "";
+          if (key === "event") return `完成${storyTitle(value)}`;
+          if (key.startsWith("has") || typeof value === "boolean") {
+            return value ? `需要${flagLabel(key)}` : "";
+          }
           return `${resourceLabel(key)} ${value}`;
         })
         .filter(Boolean)
@@ -579,10 +736,10 @@ function getActiveDailyEvent() {
 }
 
 function getNextStoryEvent() {
-  const realChapter = getRealChapter();
+  const unlockedChapter = getUnlockedChapter();
   return gameConfig.storyEvents.find(
     (event) =>
-      event.chapter <= realChapter && !state.eventHistory.includes(event.id),
+      event.chapter <= unlockedChapter && !state.eventHistory.includes(event.id),
   );
 }
 
@@ -630,7 +787,15 @@ function resolveEnding() {
   } else {
     state.endingId = "failure";
   }
+  state.flags.lastEndingEvent = "beacon";
   addLog(`结局达成：${gameConfig.endings[state.endingId].title}`);
+}
+
+function applyDirectEnding(endingId, eventId = null) {
+  if (!gameConfig.endings[endingId]) return;
+  state.endingId = endingId;
+  state.flags.lastEndingEvent = eventId;
+  addLog(`结局达成：${gameConfig.endings[endingId].title}`);
 }
 
 function performAction(actionId) {
@@ -680,7 +845,8 @@ function chooseStoryOption(eventId, optionIndex) {
   advanceTime(option.timeCost || 1);
   state.eventHistory.push(event.id);
   addLog(option.result);
-  if (option.endingCheck) resolveEnding();
+  if (option.endingId) applyDirectEnding(option.endingId, event.id);
+  if (!state.endingId && option.endingCheck) resolveEnding();
   checkFailure();
   saveAndRender();
 }
@@ -697,6 +863,7 @@ function chooseDailyOption(optionIndex) {
   advanceTime(option.timeCost || 1);
   state.resolvedDailyEvents.push(eventKey);
   addLog(option.result);
+  if (option.endingId) applyDirectEnding(option.endingId);
   checkFailure();
   saveAndRender();
 }
@@ -762,9 +929,9 @@ function refreshResourceViews() {
   });
 }
 
-function setRealChapter(chapter) {
-  state.realChapterOverride = chapter;
-  addLog(`调试：真实章节切换到第 ${chapter} 阶段。`);
+function setChapterOverride(chapter) {
+  state.chapterOverride = chapter;
+  addLog(`调试：已切换到第 ${chapter} 阶段。`);
   saveAndRender();
 }
 
@@ -776,14 +943,17 @@ function jumpGameHours(hours) {
 
 function forceEnding(id) {
   state.endingId = id;
+  state.flags.lastEndingEvent = null;
   addLog(`调试：直接进入结局「${gameConfig.endings[id].title}」。`);
   saveAndRender();
 }
 
 function restartAfterEnding() {
+  const endingEvent = state.flags.lastEndingEvent || "beacon";
   state.endingId = null;
   state.flags.finalChoice = null;
-  state.eventHistory = state.eventHistory.filter((id) => id !== "beacon");
+  state.flags.lastEndingEvent = null;
+  state.eventHistory = state.eventHistory.filter((id) => id !== endingEvent);
   addLog("你把结局页合上，回到雾岭营地继续尝试。");
   saveAndRender();
 }
@@ -873,10 +1043,14 @@ function renderCraft() {
 
 function renderStory() {
   const event = getNextStoryEvent();
-  const realChapter = getRealChapter();
+  const unlockedChapter = getUnlockedChapter();
   const nextLocked = gameConfig.storyEvents.find(
-    (item) => item.chapter > realChapter && !state.eventHistory.includes(item.id),
+    (item) =>
+      item.chapter > unlockedChapter && !state.eventHistory.includes(item.id),
   );
+  const unlockHint = nextLocked
+    ? gameConfig.chapterUnlocks[nextLocked.chapter]?.text
+    : "";
 
   if (!event) {
     return `
@@ -884,7 +1058,7 @@ function renderStory() {
         <h3>当前没有新的主线事件</h3>
         <p>${
           nextLocked
-            ? `下一段主线会在真实第 ${nextLocked.chapter} 天解锁。`
+            ? `下一阶段解锁条件：${unlockHint}`
             : "所有主线已经处理完毕。"
         }</p>
       </div>
@@ -893,7 +1067,7 @@ function renderStory() {
 
   return `
     <div class="story-panel">
-      <p class="eyebrow">真实阶段 ${event.chapter}</p>
+      <p class="eyebrow">阶段 ${event.chapter}</p>
       <h3>${event.title}</h3>
       <p>${event.text}</p>
       <div class="choice-list">
@@ -1003,9 +1177,9 @@ function renderCheatPanel() {
           .join("")}
       </div>
       <div class="button-row">
-        <button data-real-chapter="1">真实第1天</button>
-        <button data-real-chapter="2">真实第2天</button>
-        <button data-real-chapter="3">真实第3天</button>
+        <button data-chapter-override="1">解锁阶段1</button>
+        <button data-chapter-override="2">解锁阶段2</button>
+        <button data-chapter-override="3">解锁阶段3</button>
         <button data-jump-hours="12">推进12小时</button>
         <button data-jump-hours="24">推进1游戏日</button>
       </div>
@@ -1027,17 +1201,17 @@ function renderLog() {
 }
 
 function render() {
-  const realChapter = getRealChapter();
+  const unlockedChapter = getUnlockedChapter();
   app.innerHTML = `
     <main class="shell">
       <section class="hero">
         <div class="hero-copy">
           <p class="eyebrow">${gameConfig.subtitle}</p>
           <h1>${gameConfig.title}</h1>
-          <p>雾岭的时间不按现实流动。每次行动都会推进数小时，而最终路线会在真实第 3 天开放。</p>
+          <p>雾岭的时间不按现实流动。每次行动都会推进数小时，新的阶段由线索和关键物品解锁。</p>
           <div class="status-line">
             <span>${formatTime()}</span>
-            <span>真实阶段 ${realChapter}/${gameConfig.maxRealChapter}</span>
+            <span>阶段 ${unlockedChapter}/${gameConfig.maxChapter}</span>
           </div>
         </div>
         <img src="${wildernessMark}" alt="雾岭营地插画" />
@@ -1110,8 +1284,8 @@ function handleClick(event) {
   } else if (target.dataset.hideCheat !== undefined) {
     cheatVisible = false;
     render();
-  } else if (target.dataset.realChapter) {
-    setRealChapter(Number(target.dataset.realChapter));
+  } else if (target.dataset.chapterOverride) {
+    setChapterOverride(Number(target.dataset.chapterOverride));
   } else if (target.dataset.jumpHours) {
     jumpGameHours(Number(target.dataset.jumpHours));
   } else if (target.dataset.forceEnding) {
