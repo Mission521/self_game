@@ -750,8 +750,16 @@ function importSave(code) {
 }
 
 function setCheatResource(key, amount) {
-  state.resources[key] = Math.max(0, amount);
-  saveAndRender();
+  const value = Number.isFinite(amount) ? amount : 0;
+  state.resources[key] = Math.max(0, value);
+  saveGame();
+  refreshResourceViews();
+}
+
+function refreshResourceViews() {
+  document.querySelectorAll("[data-resource-list]").forEach((resourceList) => {
+    resourceList.innerHTML = renderResourceList();
+  });
 }
 
 function setRealChapter(chapter) {
@@ -1045,7 +1053,7 @@ function render() {
             <h2>状态</h2>
             <span>${state.endingId ? "已结局" : "求生中"}</span>
           </div>
-          <ul class="resource-list">
+          <ul class="resource-list" data-resource-list>
             ${renderResourceList()}
           </ul>
           <div class="inventory">

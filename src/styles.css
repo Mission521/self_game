@@ -369,14 +369,31 @@ input {
 }
 
 .cheat-panel {
-  margin-top: 22px;
+  position: fixed;
+  z-index: 20;
+  top: 16px;
+  bottom: 16px;
+  left: 16px;
+  width: min(340px, calc(100vw - 32px));
+  margin-top: 0;
+  overflow-y: auto;
   border-color: #6f4f73;
   background: #f8f0fa;
+  box-shadow: 0 18px 52px rgba(42, 31, 46, 0.22);
 }
 
 .cheat-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-bottom: 14px;
+}
+
+.cheat-panel .button-row {
+  align-items: stretch;
+  margin-top: 12px;
+}
+
+.cheat-panel .button-row button {
+  flex: 1 1 calc(50% - 10px);
 }
 
 .toast {
@@ -412,8 +429,7 @@ input {
     min-height: 220px;
   }
 
-  .action-grid,
-  .cheat-grid {
+  .action-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -444,5 +460,18 @@ input {
 
   .button-row button {
     width: 100%;
+  }
+
+  .cheat-panel {
+    top: auto;
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    width: auto;
+    max-height: 72vh;
+  }
+
+  .cheat-grid {
+    grid-template-columns: 1fr;
   }
 }
