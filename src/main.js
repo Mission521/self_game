@@ -35,6 +35,10 @@ const gameConfig = {
     spark: { label: "火种", unit: "枚" },
     clues: { label: "线索", unit: "条" },
     stamina: { label: "体力", unit: "点" },
+    morale: { label: "士气", unit: "度" },
+    rope: { label: "绳索", unit: "段" },
+    flare: { label: "信号弹", unit: "枚" },
+    pelt: { label: "毛皮", unit: "张" },
   },
   flags: {
     answeredEcho: "回应过清晨回声",
@@ -53,6 +57,10 @@ const gameConfig = {
     spark: 1,
     clues: 0,
     stamina: 8,
+    morale: 5,
+    rope: 0,
+    flare: 0,
+    pelt: 0,
   },
   recipes: [
     {
@@ -307,6 +315,144 @@ const gameConfig = {
         },
       ],
     },
+    {
+      title: "松散的悬崖路",
+      text: "通往北面的一段崖路被雨水冲松，碎石不断滑落，必须想办法过去。",
+      options: [
+        {
+          label: "用绳索垂降",
+          result: "绳索绷得发烫，但你稳稳落到下方平台。",
+          changes: { rope: -1, stamina: -1, clues: 1 },
+          requireAny: [{ rope: 1 }],
+        },
+        {
+          label: "硬着头皮翻过",
+          result: "碎石一路追着你的脚后跟，膝盖撞青了一块。",
+          changes: { stamina: -3, morale: -1 },
+        },
+        {
+          label: "绕道更远的山脊",
+          result: "你多走了大半天，但在路上记下几处陌生标记。",
+          timeCost: 4,
+          changes: { water: -1, food: -1, clues: 2 },
+        },
+      ],
+    },
+    {
+      title: "猎物踪迹",
+      text: "湿泥地上印着一串新鲜的偶蹄，看样子是一头不算大的鹿。",
+      options: [
+        {
+          label: "围猎追击",
+          result: "你顺风追上去，干净利落地放倒了它。",
+          timeCost: 3,
+          changes: { food: 2, pelt: 1, stamina: -2 },
+        },
+        {
+          label: "设陷阱",
+          result: "你削了几根木桩布陷阱，第二天清晨拖回一张完整毛皮。",
+          changes: { wood: -2, pelt: 1, morale: 1 },
+          requireAny: [{ wood: 2 }],
+        },
+        {
+          label: "让它过去",
+          result: "你蹲在草丛里看它走远，心里反而踏实下来。",
+          changes: { morale: 1 },
+        },
+      ],
+    },
+    {
+      title: "同伴的呼号",
+      text: "对面山坡传来断断续续的喊声，听不清是求助还是警告。",
+      options: [
+        {
+          label: "升空信号弹回应",
+          result: "信号弹爆开的瞬间，对面的呼喊变成了清晰的应答。",
+          changes: { flare: -1, morale: 2, clues: 1 },
+          requireAny: [{ flare: 1 }],
+          flags: { radioSignal: true },
+        },
+        {
+          label: "点起大火堆示意",
+          result: "你拼命架柴生火，烟柱直直冲上灰白的天空。",
+          changes: { wood: -2, morale: 1 },
+          requireAny: [{ wood: 2 }],
+          flags: { hasSignalFire: true },
+        },
+        {
+          label: "不敢回应",
+          result: "你蜷在岩壁后等到呼喊消失，整夜辗转难眠。",
+          changes: { morale: -2 },
+        },
+      ],
+    },
+    {
+      title: "废弃补给箱",
+      text: "灌木深处半埋着一只生锈的金属箱，搭扣已经松了一半。",
+      options: [
+        {
+          label: "撬开取走全部",
+          result: "里头有两枚信号弹和一卷尼龙绳，还压着几条干粮。",
+          changes: { flare: 1, rope: 1, food: 1 },
+        },
+        {
+          label: "留一半给后来者",
+          result: "你只带走最关键的部分，把箱盖重新压好，心里轻了一些。",
+          changes: { food: -1, rope: 1, morale: 3 },
+          requireAny: [{ food: 2 }],
+        },
+        {
+          label: "怀疑陷阱，绕走",
+          result: "你绕开补给箱，但一整天都在想到底错过了什么。",
+          changes: { morale: -1 },
+        },
+      ],
+    },
+    {
+      title: "夜里凉骨",
+      text: "气温骤降，呼出的白气挂在睫毛上，火堆也压不住寒意。",
+      options: [
+        {
+          label: "披毛皮御寒",
+          result: "粗糙的毛皮捂住了肩背，你终于能合眼休息。",
+          changes: { pelt: -1, stamina: 2, morale: 1 },
+          requireAny: [{ pelt: 1 }],
+        },
+        {
+          label: "加柴撑过去",
+          result: "你不停地往火里添柴，靠火光熬了一夜。",
+          changes: { wood: -2, stamina: 1 },
+          requireAny: [{ wood: 2 }],
+        },
+        {
+          label: "硬扛到天亮",
+          result: "牙齿打颤的声音陪了你一整夜，清晨连手都不太听使唤。",
+          changes: { stamina: -3, morale: -1 },
+        },
+      ],
+    },
+    {
+      title: "岔路上的旧布条",
+      text: "三岔路口的枯枝上系着一截褪色布条，看上去是有人留下的指引。",
+      options: [
+        {
+          label: "顺着指引深入",
+          result: "你沿布条走了一截，在一块石头底下发现了潦草的笔记。",
+          timeCost: 2,
+          changes: { clues: 2, stamina: -1 },
+        },
+        {
+          label: "剪下来做绳",
+          result: "布条接起来勉强成一段细绳，至少能绑些东西。",
+          changes: { rope: 1, morale: -1 },
+        },
+        {
+          label: "看一眼就走",
+          result: "你没有动那条布，只是在心里记下了位置。",
+          changes: { morale: 1 },
+        },
+      ],
+    },
   ],
   storyEvents: [
     {
@@ -401,6 +547,64 @@ const gameConfig = {
       ],
     },
     {
+      id: "ropeBridge",
+      chapter: 2,
+      title: "松垮的索桥",
+      text: "通往观察站背面的旧索桥只剩主绳还撑着，木板大半烂透，但桥那头似乎有过有人停留的痕迹。",
+      options: [
+        {
+          label: "用绳索加固桥面",
+          result: "你把绳索绕在主绳和断板之间，重新扎成一条能走的路。",
+          changes: { rope: -2, clues: 2, morale: 1 },
+          flags: { fixedRope: true },
+          requireAny: [{ rope: 2 }],
+          timeCost: 3,
+        },
+        {
+          label: "强行荡过去",
+          result: "你抓着主绳一口气荡过去，肩膀被磨出一道血印。",
+          changes: { stamina: -3, clues: 1 },
+          flags: { injured: true },
+          timeCost: 2,
+        },
+        {
+          label: "放弃这条路",
+          result: "你退回观察站，决定从其他方向想办法。",
+          changes: { morale: -2 },
+          timeCost: 1,
+        },
+      ],
+    },
+    {
+      id: "coldRiver",
+      chapter: 2,
+      title: "冷河对岸的火光",
+      text: "黑色水面对岸闪着一豆火光，似乎有人也在等待信号。",
+      options: [
+        {
+          label: "升起信号弹回应",
+          result: "信号弹炸出白光，对岸的火堆立刻往上堆了一层，又传来短促的金属敲击。",
+          changes: { flare: -1, morale: 2, clues: 1 },
+          flags: { radioSignal: true },
+          requireAny: [{ flare: 1 }],
+          timeCost: 2,
+        },
+        {
+          label: "趟过冷河",
+          result: "刺骨的水浸到胸口，但你抓到了几张被冲下来的笔记。",
+          changes: { stamina: -4, food: -1, clues: 1 },
+          flags: { crossedColdRiver: true },
+          timeCost: 4,
+        },
+        {
+          label: "不回应",
+          result: "你看着对岸的火光慢慢熄灭，心里像被空出一块。",
+          changes: { morale: -1 },
+          timeCost: 1,
+        },
+      ],
+    },
+    {
       id: "stoneDoor",
       chapter: 3,
       title: "石门回声",
@@ -428,6 +632,34 @@ const gameConfig = {
           flags: { finalChoice: "keeper" },
           timeCost: 2,
           endingId: "keeper",
+        },
+      ],
+    },
+    {
+      id: "mistShadow",
+      chapter: 3,
+      title: "雾中影子",
+      text: "靠近山脊时，雾里始终有一道形状陪着你，分不清是动物还是别的什么。",
+      options: [
+        {
+          label: "披上毛皮潜行",
+          result: "你借着毛皮的轮廓混进雾里，那道影子最后停在一处石坛前。",
+          changes: { pelt: -2, clues: 2, morale: 1 },
+          flags: { hiddenScout: true },
+          requireAny: [{ pelt: 2 }],
+          timeCost: 3,
+        },
+        {
+          label: "正面对峙",
+          result: "你扯开嗓子喊出去，影子停顿了一下，缓缓退入更深的雾里。",
+          changes: { stamina: -2, morale: -1, clues: 1 },
+          timeCost: 2,
+        },
+        {
+          label: "原路撤退",
+          result: "你顺着来路退回营地，但那道影子留在你脑海里很久。",
+          changes: { stamina: -1, morale: -2 },
+          timeCost: 2,
         },
       ],
     },
@@ -646,7 +878,7 @@ function resourceLabel(id) {
 
 function clampResources() {
   for (const key of Object.keys(gameConfig.resources)) {
-    const max = key === "stamina" ? 12 : 99;
+    const max = key === "stamina" ? 12 : key === "morale" ? 10 : 99;
     state.resources[key] = Math.max(0, Math.min(max, state.resources[key] || 0));
   }
 }
@@ -844,7 +1076,8 @@ function chooseStoryOption(eventId, optionIndex) {
   mergeFlags(option.flags);
   advanceTime(option.timeCost || 1);
   state.eventHistory.push(event.id);
-  addLog(option.result);
+  const storyDelta = describeChanges(option.changes);
+  addLog(storyDelta ? `${option.result}\n资源变化：${storyDelta}` : option.result);
   if (option.endingId) applyDirectEnding(option.endingId, event.id);
   if (!state.endingId && option.endingCheck) resolveEnding();
   checkFailure();
@@ -862,7 +1095,8 @@ function chooseDailyOption(optionIndex) {
   mergeFlags(option.flags);
   advanceTime(option.timeCost || 1);
   state.resolvedDailyEvents.push(eventKey);
-  addLog(option.result);
+  const dailyDelta = describeChanges(option.changes);
+  addLog(dailyDelta ? `${option.result}\n资源变化：${dailyDelta}` : option.result);
   if (option.endingId) applyDirectEnding(option.endingId);
   checkFailure();
   saveAndRender();

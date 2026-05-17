@@ -360,6 +360,10 @@ input {
   line-height: 1.65;
 }
 
+.log-list li {
+  white-space: pre-line;
+}
+
 .save-tools label,
 .cheat-grid label {
   display: grid;
