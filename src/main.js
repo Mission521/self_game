@@ -27,6 +27,7 @@ const gameConfig = {
     },
   },
   resources: {
+    stamina: { label: "体力", unit: "点" },
     water: { label: "清水", unit: "份" },
     food: { label: "食物", unit: "份" },
     wood: { label: "木材", unit: "捆" },
@@ -34,7 +35,6 @@ const gameConfig = {
     herbs: { label: "草药", unit: "束" },
     spark: { label: "火种", unit: "枚" },
     clues: { label: "线索", unit: "条" },
-    stamina: { label: "体力", unit: "点" },
     morale: { label: "士气", unit: "度" },
     rope: { label: "绳索", unit: "段" },
     flare: { label: "信号弹", unit: "枚" },
@@ -103,6 +103,30 @@ const gameConfig = {
       cost: { wood: 5, spark: 1, herbs: 1 },
       flags: { hasSignalFire: true },
     },
+    {
+      id: "furCloak",
+      label: "毛皮披风",
+      description: "缝制后穿上，休整时额外恢复体力。",
+      timeCost: 2,
+      cost: { pelt: 2, herbs: 1 },
+      flags: { hasFurCloak: true },
+    },
+    {
+      id: "craftFlare",
+      label: "自制信号弹",
+      description: "用硫磺石和干草捆成可点燃的信号装置，探索时随手备一枚。",
+      timeCost: 2,
+      cost: { spark: 1, herbs: 2, stone: 2 },
+      flags: { hasCraftFlare: true },
+    },
+    {
+      id: "ropeladder",
+      label: "绳梯",
+      description: "绑好后可攀上高处瞭望，探索时额外发现线索。",
+      timeCost: 2,
+      cost: { rope: 2, wood: 2 },
+      flags: { hasRopeLadder: true },
+    },
   ],
   actions: [
     {
@@ -133,7 +157,10 @@ const gameConfig = {
       description: "离开营地寻找路标、遗留物和离开的方向。",
       timeCost: 4,
       changes: { water: -1, food: -1, clues: 1, stamina: -2 },
-      bonus: (state) => (state.flags.hasMap ? { clues: 1 } : {}),
+      bonus: (state) => ({
+        clues: (state.flags.hasMap ? 1 : 0) + (state.flags.hasRopeLadder ? 1 : 0),
+        flare: state.flags.hasCraftFlare ? 1 : 0,
+      }),
     },
     {
       id: "rest",
@@ -141,7 +168,32 @@ const gameConfig = {
       description: "整理物资、处理伤口，让身体撑过下一段路。",
       timeCost: 6,
       changes: { water: -1, food: -1, stamina: 4 },
-      bonus: (state) => (state.flags.hasShelter ? { stamina: 2 } : {}),
+      bonus: (state) => ({
+        stamina: (state.flags.hasShelter ? 2 : 0) + (state.flags.hasFurCloak ? 1 : 0),
+      }),
+    },
+    {
+      id: "trap",
+      label: "设置陷阱",
+      description: "在兽径旁布置简易套索，等待猎物上钩。",
+      timeCost: 3,
+      changes: { wood: -1, pelt: 1, food: 1, stamina: -1 },
+    },
+    {
+      id: "braid",
+      label: "编织绳索",
+      description: "用藤蔓和草茎搓成可用的绳段。",
+      timeCost: 2,
+      changes: { herbs: -2, rope: 1, stamina: -1 },
+      requireAny: [{ herbs: 2 }],
+    },
+    {
+      id: "encourage",
+      label: "鼓舞同伴",
+      description: "分出一份食物，围坐讲述走出去的计划。",
+      timeCost: 1,
+      changes: { food: -1, morale: 2 },
+      requireAny: [{ food: 1 }],
     },
   ],
   dailyEvents: [
