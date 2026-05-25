@@ -1224,6 +1224,12 @@ function sortDavinciHand(cards) {
   return [...regularCards, ...wildcards];
 }
 
+function sortDavinciRegularCardsInPlace(cards) {
+  const regularCards = cards.filter((item) => !item.wildcard).sort(compareDavinciCards);
+  let regularIndex = 0;
+  return cards.map((item) => (item.wildcard ? item : regularCards[regularIndex++]));
+}
+
 function insertDavinciCard(cards, card, position = null) {
   const nextCards = [...cards];
   if (card.wildcard) {
@@ -1235,7 +1241,7 @@ function insertDavinciCard(cards, card, position = null) {
     return nextCards;
   }
   nextCards.push(card);
-  return sortDavinciHand(nextCards);
+  return sortDavinciRegularCardsInPlace(nextCards);
 }
 
 function drawDavinciCard() {
