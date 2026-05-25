@@ -2258,7 +2258,7 @@ function renderThirtyNineGame() {
 
 function renderDavinciCard(card, owner) {
   const visible = owner === "player" || card.revealed;
-  const label = visible ? davinciCardLabel(card) : "暗牌";
+  const label = owner === "player" && card.revealed ? "已公开" : visible ? davinciCardLabel(card) : "暗牌";
   const valueLabel = visible ? (card.wildcard ? "*" : card.value) : "?";
   return `
     <span class="code-card ${card.color} ${card.revealed ? "revealed" : ""} ${!visible ? "hidden" : ""}">
