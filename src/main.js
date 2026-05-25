@@ -1013,24 +1013,33 @@ function createDavinciGame() {
     playerCards.push({ ...deck.pop(), revealed: false });
     systemCards.push({ ...deck.pop(), revealed: false });
   }
-  const firstOwner = randomFirstOwner();
+  const openingWildcards = playerCards.filter((card) => card.wildcard);
 
-  return {
+  const game = {
     phase: "playing",
-    currentTurn: firstOwner,
+    currentTurn: null,
     started: false,
     deck,
-    playerCards: sortDavinciHand(playerCards),
+    playerCards: sortDavinciHand(playerCards.filter((card) => !card.wildcard)),
     systemCards: sortDavinciHand(systemCards),
     pendingCard: null,
     pendingOwner: null,
+    openingWildcards,
     turnCardId: null,
     hasGuessedThisTurn: false,
     selectedTargetId: null,
-    message: `随机决定${ownerLabel(firstOwner)}先手。${ownerLabel(firstOwner)}开始回合。`,
-    result: createMiniResult("neutral", `本局随机先手：${ownerLabel(firstOwner)}`),
+    message: "",
+    result: null,
     winner: null,
   };
+
+  if (game.openingWildcards.length > 0) {
+    beginDavinciOpeningWildcardPlacement(game);
+    return game;
+  }
+
+  startDavinciGame(game);
+  return game;
 }
 
 function ownerLabel(owner) {
@@ -1244,6 +1253,30 @@ function insertDavinciCard(cards, card, position = null) {
   return sortDavinciRegularCardsInPlace(nextCards);
 }
 
+function startDavinciGame(game) {
+  const firstOwner = randomFirstOwner();
+  game.phase = "playing";
+  game.currentTurn = firstOwner;
+  game.started = false;
+  game.message = `随机决定${ownerLabel(firstOwner)}先手。${ownerLabel(firstOwner)}开始回合。`;
+  game.result = createMiniResult("neutral", `本局随机先手：${ownerLabel(firstOwner)}`);
+}
+
+function beginDavinciOpeningWildcardPlacement(game) {
+  game.phase = "openingWildcard";
+  game.currentTurn = null;
+  game.started = false;
+  game.pendingCard = game.openingWildcards.shift() || null;
+  game.pendingOwner = "player";
+  game.turnCardId = null;
+  game.hasGuessedThisTurn = false;
+  game.selectedTargetId = null;
+  const remainingText =
+    game.openingWildcards.length > 0 ? `，放置后还剩 ${game.openingWildcards.length} 张万能牌` : "";
+  game.message = `开局抽到了${davinciCardLabel(game.pendingCard)}。请先选择插入位置${remainingText}。`;
+  game.result = createMiniResult("neutral", "开局万能牌需要先放置，完成后再随机先后手。");
+}
+
 function drawDavinciCard() {
   const game = miniGameState.davinci;
   if (game.deck.length === 0) return null;
@@ -1284,11 +1317,28 @@ function beginDavinciPlayerTurn() {
 
 function insertDavinciPlayerWildcard(position) {
   const game = miniGameState.davinci;
-  if (game.phase !== "insertWildcard" || game.pendingOwner !== "player" || !game.pendingCard) return;
+  const isOpeningPlacement = game.phase === "openingWildcard";
+  if (
+    (game.phase !== "insertWildcard" && !isOpeningPlacement) ||
+    game.pendingOwner !== "player" ||
+    !game.pendingCard
+  ) {
+    return;
+  }
   game.playerCards = insertDavinciCard(game.playerCards, game.pendingCard, position);
-  game.turnCardId = game.pendingCard.id;
+  game.turnCardId = isOpeningPlacement ? null : game.pendingCard.id;
   game.pendingCard = null;
   game.pendingOwner = null;
+  if (isOpeningPlacement) {
+    if (game.openingWildcards.length > 0) {
+      beginDavinciOpeningWildcardPlacement(game);
+    } else {
+      startDavinciGame(game);
+      scheduleMiniGameStart("davinci");
+    }
+    render();
+    return;
+  }
   game.phase = "guessing";
   game.message = "万能牌已插入。请选择系统的一张隐藏牌猜测。";
   game.result = createMiniResult("neutral", "万能牌已插入牌列。");
@@ -2266,8 +2316,9 @@ function renderDavinciCard(card, owner) {
   const visible = owner === "player" || card.revealed;
   const label = owner === "player" && card.revealed ? "已公开" : visible ? davinciCardLabel(card) : "暗牌";
   const valueLabel = visible ? (card.wildcard ? "*" : card.value) : "?";
+  const playerRevealedClass = owner === "player" && card.revealed ? "player-revealed" : "";
   return `
-    <span class="code-card ${card.color} ${card.revealed ? "revealed" : ""} ${!visible ? "hidden" : ""}">
+    <span class="code-card ${card.color} ${card.revealed ? "revealed" : ""} ${playerRevealedClass} ${!visible ? "hidden" : ""}">
       <strong>${valueLabel}</strong>
       <small>${label}</small>
     </span>
@@ -2315,10 +2366,21 @@ function renderDavinciGuessControls() {
 
 function renderDavinciWildcardInsert() {
   const game = miniGameState.davinci;
-  if (game.phase !== "insertWildcard" || game.pendingOwner !== "player") return "";
+  if (
+    (game.phase !== "insertWildcard" && game.phase !== "openingWildcard") ||
+    game.pendingOwner !== "player"
+  ) {
+    return "";
+  }
+  const title = game.phase === "openingWildcard" ? "放置开局万能牌" : "选择万能牌位置";
+  const hint =
+    game.phase === "openingWildcard" && game.openingWildcards.length > 0
+      ? `<p class="mini-hint">放置后还剩 ${game.openingWildcards.length} 张开局万能牌。</p>`
+      : "";
   return `
     <section>
-      <h3>选择万能牌位置</h3>
+      <h3>${title}</h3>
+      ${hint}
       <div class="mini-card-row selectable">
         ${Array.from({ length: game.playerCards.length + 1 }, (_, index) => `
           <button class="insert-slot" data-davinci-insert="${index}">
@@ -2332,10 +2394,16 @@ function renderDavinciWildcardInsert() {
 
 function renderDavinciGame() {
   const game = miniGameState.davinci;
+  const currentStatus =
+    game.phase === "openingWildcard"
+      ? "准备：放置万能牌"
+      : game.currentTurn
+        ? `当前：${ownerLabel(game.currentTurn)}`
+        : "本局结束";
   return `
     <div class="mini-stage">
       <div class="mini-status">
-        <span>${game.currentTurn ? `当前：${ownerLabel(game.currentTurn)}` : "本局结束"}</span>
+        <span>${currentStatus}</span>
         <span>牌堆 ${game.deck.length} 张</span>
       </div>
       <p>${escapeHtml(game.message)}</p>
