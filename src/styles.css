@@ -515,6 +515,33 @@ input {
   font-size: 0.86rem;
 }
 
+.mini-result {
+  border: 1px solid #b3af9e;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #f9f6ee;
+  color: #303830;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.mini-result.success {
+  border-color: #3f7b55;
+  background: #e7f3e8;
+  color: #1f4f34;
+}
+
+.mini-result.error {
+  border-color: #9d4a3f;
+  background: #fae9e4;
+  color: #702d25;
+}
+
+.mini-result.neutral {
+  border-color: #8f836b;
+  background: #f5efe1;
+}
+
 .score-board,
 .code-board {
   display: grid;
@@ -657,16 +684,34 @@ button.code-card {
 
 .guess-panel {
   display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr)) repeat(2, auto);
+  grid-template-columns: minmax(120px, 1fr) minmax(110px, auto) repeat(2, auto);
   gap: 10px;
   align-items: end;
 }
 
-.guess-panel label {
+.guess-panel label,
+.guess-color-hint {
   display: grid;
   gap: 6px;
   color: #4a544a;
   font-weight: 700;
+}
+
+.guess-color-hint {
+  min-height: 42px;
+  align-content: center;
+  border: 1px solid #d1c9b8;
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: #f9f6ee;
+}
+
+.guess-color-hint span {
+  font-size: 0.72rem;
+}
+
+.guess-color-hint strong {
+  color: #1d2622;
 }
 
 .guess-panel select {

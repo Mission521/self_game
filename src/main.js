@@ -921,6 +921,23 @@ function createMiniGameState() {
   };
 }
 
+function scheduleMiniGameStart(gameId) {
+  const game = miniGameState[gameId];
+  if (!game || game.phase !== "playing" || game.started) return;
+  game.started = true;
+  if (gameId === "thirtyNine" && game.currentTurn === "system" && game.tableCards.length === 0) {
+    window.setTimeout(playThirtyNineSystemTurn, 420);
+  }
+  if (gameId === "davinci") {
+    if (game.currentTurn === "system" && !game.turnCardId && !game.pendingCard) {
+      window.setTimeout(playDavinciSystemTurn, 520);
+    }
+    if (game.currentTurn === "player" && !game.turnCardId && !game.pendingCard) {
+      beginDavinciPlayerTurn();
+    }
+  }
+}
+
 function getMiniGameDifficulty(gameId) {
   return miniGameState.difficulty?.[gameId] || "normal";
 }
@@ -929,6 +946,14 @@ function setMiniGameDifficulty(gameId, difficulty) {
   if (!MINI_GAME_DIFFICULTIES[difficulty]) return;
   if (!miniGameState.difficulty) miniGameState.difficulty = {};
   miniGameState.difficulty[gameId] = difficulty;
+}
+
+function randomFirstOwner() {
+  return randomItem(["player", "system"]);
+}
+
+function createMiniResult(type, text) {
+  return { type, text };
 }
 
 function createThirtyNineDeck() {
@@ -943,16 +968,16 @@ function createThirtyNineDeck() {
 }
 
 function createThirtyNineGame() {
+  const firstOwner = randomFirstOwner();
   return {
-    phase: "coinPick",
-    coinChoice: null,
-    coinResult: null,
-    firstChooser: null,
-    currentTurn: null,
+    phase: "playing",
+    currentTurn: firstOwner,
+    started: false,
     deck: createThirtyNineDeck(),
     hands: { player: [], system: [] },
     tableCards: [],
-    message: "选择硬币的一面，决定谁来指定先后手。",
+    message: `随机决定${ownerLabel(firstOwner)}先手。${ownerLabel(firstOwner)}开始选牌。`,
+    result: createMiniResult("neutral", `本局随机先手：${ownerLabel(firstOwner)}`),
     winner: null,
   };
 }
@@ -988,13 +1013,12 @@ function createDavinciGame() {
     playerCards.push({ ...deck.pop(), revealed: false });
     systemCards.push({ ...deck.pop(), revealed: false });
   }
+  const firstOwner = randomFirstOwner();
 
   return {
-    phase: "coinPick",
-    coinChoice: null,
-    coinResult: null,
-    firstChooser: null,
-    currentTurn: null,
+    phase: "playing",
+    currentTurn: firstOwner,
+    started: false,
     deck,
     playerCards: sortDavinciHand(playerCards),
     systemCards: sortDavinciHand(systemCards),
@@ -1003,7 +1027,8 @@ function createDavinciGame() {
     turnCardId: null,
     hasGuessedThisTurn: false,
     selectedTargetId: null,
-    message: "选择硬币的一面，决定谁来指定先后手。",
+    message: `随机决定${ownerLabel(firstOwner)}先手。${ownerLabel(firstOwner)}开始回合。`,
+    result: createMiniResult("neutral", `本局随机先手：${ownerLabel(firstOwner)}`),
     winner: null,
   };
 }
@@ -1016,10 +1041,6 @@ function oppositeOwner(owner) {
   return owner === "player" ? "system" : "player";
 }
 
-function coinLabel(side) {
-  return side === "letter" ? "字面" : "空面";
-}
-
 function totalThirtyNineCards(cards) {
   return cards.reduce((total, card) => total + card.value, 0);
 }
@@ -1028,54 +1049,12 @@ function totalThirtyNineTable(game) {
   return game.tableCards.reduce((total, entry) => total + entry.card.value, 0);
 }
 
-function chooseThirtyNineSystemOrder(game) {
-  const playerCanWin = game.deck.some(
-    (card) => totalThirtyNineTable(game) + card.value === 39,
-  );
-  return playerCanWin ? "system" : "player";
-}
-
-function startThirtyNineTurn(game, firstOwner) {
-  game.phase = "playing";
-  game.currentTurn = firstOwner;
-  game.message = `${ownerLabel(firstOwner)}先手。${ownerLabel(firstOwner)}开始选牌。`;
-  if (firstOwner === "system") {
-    window.setTimeout(playThirtyNineSystemTurn, 420);
-  }
-}
-
-function pickThirtyNineCoin(side) {
-  const game = miniGameState.thirtyNine;
-  if (game.phase !== "coinPick") return;
-
-  const result = randomItem(["letter", "blank"]);
-  game.coinChoice = side;
-  game.coinResult = result;
-  if (result === side) {
-    game.phase = "orderPick";
-    game.firstChooser = "player";
-    game.message = `硬币是${coinLabel(result)}，你猜中了。请选择先手或后手。`;
-  } else {
-    const firstOwner = chooseThirtyNineSystemOrder(game);
-    game.firstChooser = "system";
-    game.message = `硬币是${coinLabel(result)}，你猜错了。系统选择${ownerLabel(firstOwner)}先手。`;
-    startThirtyNineTurn(game, firstOwner);
-  }
-  render();
-}
-
-function chooseThirtyNineOrder(firstOwner) {
-  const game = miniGameState.thirtyNine;
-  if (game.phase !== "orderPick" || game.firstChooser !== "player") return;
-  startThirtyNineTurn(game, firstOwner);
-  render();
-}
-
 function finishThirtyNineGame(game, winner, message) {
   game.phase = "finished";
   game.winner = winner;
   game.currentTurn = null;
   game.message = message;
+  game.result = createMiniResult(winner === "draw" ? "neutral" : "success", message);
 }
 
 function evaluateThirtyNineGame(game, owner) {
@@ -1117,22 +1096,79 @@ function chooseThirtyNineCard(cardId) {
   render();
 }
 
+function countThirtyNineCardsWithValue(deck, value) {
+  return deck.filter((card) => card.value === value).length;
+}
+
+function scoreThirtyNineHardCard(game, card) {
+  const tableTotal = totalThirtyNineTable(game);
+  const nextTotal = tableTotal + card.value;
+  if (nextTotal === 39) return Number.POSITIVE_INFINITY;
+  if (nextTotal > 39) return Number.NEGATIVE_INFINITY;
+
+  const remainingDeck = game.deck.filter((item) => item.id !== card.id);
+  const controlTotals = [3, 12, 21, 30];
+  const nextControlTotal = controlTotals.find((total) => total > tableTotal);
+  const controlHit = controlTotals.includes(nextTotal);
+  const controlDistance =
+    nextControlTotal && nextTotal <= nextControlTotal
+      ? nextControlTotal - nextTotal
+      : Math.min(...controlTotals.map((total) => Math.abs(total - nextTotal)));
+  const playerWinningReplies = remainingDeck.filter(
+    (item) => nextTotal + item.value === 39,
+  ).length;
+  const playerControlReplies = remainingDeck.filter((item) =>
+    controlTotals.includes(nextTotal + item.value),
+  ).length;
+  const neededToWin = 39 - nextTotal;
+  const overPressureCards = remainingDeck.filter((item) => nextTotal + item.value > 39).length;
+
+  return (
+    (controlHit ? 6000 : 0) -
+    playerWinningReplies * 10000 -
+    playerControlReplies * 1200 -
+    countThirtyNineCardsWithValue(remainingDeck, neededToWin) * 450 -
+    controlDistance * 260 +
+    overPressureCards * 35 -
+    nextTotal * 2 +
+    Math.random()
+  );
+}
+
+function chooseThirtyNineHardCard(game) {
+  const safeCards = game.deck.filter((card) => totalThirtyNineTable(game) + card.value <= 39);
+  const candidates = safeCards.length > 0 ? safeCards : game.deck;
+  return [...candidates].sort(
+    (a, b) => scoreThirtyNineHardCard(game, b) - scoreThirtyNineHardCard(game, a),
+  )[0];
+}
+
+function chooseThirtyNineClosestSafeCard(game) {
+  const tableTotal = totalThirtyNineTable(game);
+  const safeCards = game.deck.filter((card) => tableTotal + card.value <= 39);
+  if (safeCards.length === 0) return null;
+  const scoredCards = safeCards.map((card) => ({
+    card,
+    distance: 39 - (tableTotal + card.value),
+  }));
+  const bestDistance = Math.min(...scoredCards.map((entry) => entry.distance));
+  return randomItem(scoredCards.filter((entry) => entry.distance === bestDistance)).card;
+}
+
 function chooseThirtyNineSystemCard(game) {
   const difficulty = getMiniGameDifficulty("thirtyNine");
   const tableTotal = totalThirtyNineTable(game);
   const winningCard = game.deck.find((card) => tableTotal + card.value === 39);
   if (winningCard && (difficulty !== "easy" || Math.random() >= 0.35)) return winningCard;
 
+  if (difficulty === "hard") return chooseThirtyNineHardCard(game);
+
   const blockingCard = game.deck.find((card) => tableTotal + card.value > 39);
   if (difficulty === "normal" && blockingCard) return blockingCard;
 
   const safeCards = game.deck.filter((card) => tableTotal + card.value <= 39);
   if (safeCards.length > 0) {
-    const optimalSafeCard = [...safeCards].sort((a, b) => {
-      const aDistance = 39 - (tableTotal + a.value);
-      const bDistance = 39 - (tableTotal + b.value);
-      return aDistance - bDistance || b.value - a.value;
-    })[0];
+    const optimalSafeCard = chooseThirtyNineClosestSafeCard(game);
 
     if (difficulty === "easy" && safeCards.length > 1 && Math.random() < 0.62) {
       const nonOptimalCards = safeCards.filter((card) => card.id !== optimalSafeCard.id);
@@ -1142,7 +1178,7 @@ function chooseThirtyNineSystemCard(game) {
     return optimalSafeCard;
   }
 
-  if (difficulty === "hard" || difficulty === "normal") return game.deck[0];
+  if (difficulty === "normal") return game.deck[0];
   return randomItem(game.deck);
 }
 
@@ -1202,50 +1238,6 @@ function insertDavinciCard(cards, card, position = null) {
   return sortDavinciHand(nextCards);
 }
 
-function chooseDavinciSystemOrder(game) {
-  const playerHidden = game.playerCards.filter((card) => !card.revealed).length;
-  const systemHidden = game.systemCards.filter((card) => !card.revealed).length;
-  return systemHidden >= playerHidden ? "system" : "player";
-}
-
-function startDavinciTurn(game, firstOwner) {
-  game.phase = "playing";
-  game.currentTurn = firstOwner;
-  game.message = `${ownerLabel(firstOwner)}先手。${ownerLabel(firstOwner)}开始回合。`;
-  if (firstOwner === "system") {
-    window.setTimeout(playDavinciSystemTurn, 520);
-  } else {
-    beginDavinciPlayerTurn();
-  }
-}
-
-function pickDavinciCoin(side) {
-  const game = miniGameState.davinci;
-  if (game.phase !== "coinPick") return;
-
-  const result = randomItem(["letter", "blank"]);
-  game.coinChoice = side;
-  game.coinResult = result;
-  if (result === side) {
-    game.phase = "orderPick";
-    game.firstChooser = "player";
-    game.message = `硬币是${coinLabel(result)}，你猜中了。请选择先手或后手。`;
-  } else {
-    const firstOwner = chooseDavinciSystemOrder(game);
-    game.firstChooser = "system";
-    game.message = `硬币是${coinLabel(result)}，你猜错了。系统选择${ownerLabel(firstOwner)}先手。`;
-    startDavinciTurn(game, firstOwner);
-  }
-  render();
-}
-
-function chooseDavinciOrder(firstOwner) {
-  const game = miniGameState.davinci;
-  if (game.phase !== "orderPick" || game.firstChooser !== "player") return;
-  startDavinciTurn(game, firstOwner);
-  render();
-}
-
 function drawDavinciCard() {
   const game = miniGameState.davinci;
   if (game.deck.length === 0) return null;
@@ -1262,6 +1254,7 @@ function beginDavinciPlayerTurn() {
   if (!card) {
     game.phase = "guessing";
     game.message = "牌堆已经抽完，请继续猜测系统的隐藏牌。";
+    game.result = createMiniResult("neutral", "牌堆已空，本回合直接进入猜测。");
     return;
   }
 
@@ -1271,6 +1264,7 @@ function beginDavinciPlayerTurn() {
   if (card.wildcard) {
     game.phase = "insertWildcard";
     game.message = `你抽到了${davinciCardLabel(card)}。请选择插入位置。`;
+    game.result = createMiniResult("neutral", `你抽到了${davinciCardLabel(card)}。`);
   } else {
     game.playerCards = insertDavinciCard(game.playerCards, card);
     game.turnCardId = card.id;
@@ -1278,6 +1272,7 @@ function beginDavinciPlayerTurn() {
     game.pendingOwner = null;
     game.phase = "guessing";
     game.message = `你抽到了${davinciCardLabel(card)}，已自动排序。请选择系统的一张隐藏牌猜测。`;
+    game.result = createMiniResult("neutral", `你抽到了${davinciCardLabel(card)}。`);
   }
 }
 
@@ -1290,6 +1285,7 @@ function insertDavinciPlayerWildcard(position) {
   game.pendingOwner = null;
   game.phase = "guessing";
   game.message = "万能牌已插入。请选择系统的一张隐藏牌猜测。";
+  game.result = createMiniResult("neutral", "万能牌已插入牌列。");
   render();
 }
 
@@ -1301,6 +1297,7 @@ function finishDavinciGame(game, winner, message) {
   game.pendingOwner = null;
   game.turnCardId = null;
   game.message = message;
+  game.result = createMiniResult(winner === "draw" ? "neutral" : "success", message);
 }
 
 function checkDavinciVictory(game) {
@@ -1321,30 +1318,40 @@ function checkDavinciVictory(game) {
   return false;
 }
 
-function guessDavinciSystemCard(cardId, color, valueText) {
+function guessDavinciSystemCard(cardId, valueText) {
   const game = miniGameState.davinci;
   if (game.phase !== "guessing" || game.currentTurn !== "player") return;
   const card = game.systemCards.find((item) => item.id === cardId);
   if (!card || card.revealed) return;
 
+  const color = card.color;
   const guessedValue = valueText === "wild" ? null : Number(valueText);
   const correct =
     card.color === color &&
     ((card.wildcard && valueText === "wild") || (!card.wildcard && card.value === guessedValue));
+  const guessLabel =
+    valueText === "wild"
+      ? `${davinciColorLabel(color)}万能牌`
+      : `${davinciColorLabel(color)}${valueText}`;
 
   game.hasGuessedThisTurn = true;
   if (correct) {
     card.revealed = true;
     game.selectedTargetId = null;
     if (!checkDavinciVictory(game)) {
-      game.message = `猜对了：${davinciCardLabel(card)}。你可以继续猜，或结束回合。`;
+      game.message = `猜对了：${davinciCardLabel(card)}。你可以继续猜，或跳过结束回合。`;
+      game.result = createMiniResult("success", `猜对：${davinciCardLabel(card)}。`);
     }
   } else {
     const exposed = revealPlayerTurnCard(game);
     game.selectedTargetId = null;
     game.currentTurn = "system";
     game.phase = "playing";
-    game.message = `猜错了。${exposed ? `你的${davinciCardLabel(exposed)}被公开。` : ""}轮到系统。`;
+    game.message = `猜 ${guessLabel} 错了。${exposed ? `你的${davinciCardLabel(exposed)}被公开。` : ""}轮到系统。`;
+    game.result = createMiniResult(
+      "error",
+      `猜错：目标不是 ${guessLabel}。${exposed ? `公开了你的${davinciCardLabel(exposed)}。` : ""}`,
+    );
     if (!checkDavinciVictory(game)) {
       window.setTimeout(playDavinciSystemTurn, 520);
     }
@@ -1365,10 +1372,12 @@ function revealPlayerTurnCard(game) {
 
 function endDavinciPlayerTurn() {
   const game = miniGameState.davinci;
-  if (game.phase !== "guessing" || game.currentTurn !== "player" || !game.hasGuessedThisTurn) return;
+  if (game.phase !== "guessing" || game.currentTurn !== "player") return;
   game.currentTurn = "system";
   game.phase = "playing";
-  game.message = "你结束了回合。轮到系统。";
+  game.selectedTargetId = null;
+  game.message = game.hasGuessedThisTurn ? "你结束了回合。轮到系统。" : "你跳过了猜测。轮到系统。";
+  game.result = createMiniResult("neutral", game.hasGuessedThisTurn ? "玩家结束回合。" : "玩家跳过猜测。");
   render();
   window.setTimeout(playDavinciSystemTurn, 520);
 }
@@ -1494,6 +1503,7 @@ function playDavinciSystemTurn() {
     game.currentTurn = "player";
     const hasHiddenPlayerCards = game.playerCards.some((card) => !card.revealed);
     game.message = `${drawnMessage}。系统${hasHiddenPlayerCards ? "跳过猜测" : "无法继续猜测"}，轮到你。`;
+    game.result = createMiniResult("neutral", `系统${hasHiddenPlayerCards ? "跳过猜测" : "无法继续猜测"}。`);
     beginDavinciPlayerTurn();
     render();
     return;
@@ -1513,12 +1523,17 @@ function playDavinciSystemTurn() {
     if (!checkDavinciVictory(game)) {
       game.currentTurn = "player";
       game.message = `${drawnMessage}，并猜中你的 ${guessLabel}。轮到你。`;
+      game.result = createMiniResult("error", `系统猜中：你的 ${guessLabel} 被公开。`);
       beginDavinciPlayerTurn();
     }
   } else {
     const exposed = revealSystemTurnCard(game, turnCard);
     game.currentTurn = "player";
     game.message = `${drawnMessage}，猜你的 ${guessLabel} 失败。系统公开了${exposed ? davinciCardLabel(exposed) : "一张牌"}。轮到你。`;
+    game.result = createMiniResult(
+      "success",
+      `系统猜错：公开了${exposed ? davinciCardLabel(exposed) : "一张系统牌"}。`,
+    );
     if (!checkDavinciVictory(game)) {
       beginDavinciPlayerTurn();
     }
@@ -2120,31 +2135,6 @@ function renderMiniGameLauncher() {
   return `<button class="mini-launcher" data-mini-open>小游戏</button>`;
 }
 
-function renderCoinControls(game, gameId) {
-  const prefix = gameId === "thirtyNine" ? "39点" : "达芬奇密码";
-  return `
-    <div class="mini-stage">
-      <p>${escapeHtml(game.message)}</p>
-      <div class="button-row">
-        <button data-mini-coin="${gameId}" data-side="letter">${prefix} · 字面</button>
-        <button data-mini-coin="${gameId}" data-side="blank">${prefix} · 空面</button>
-      </div>
-    </div>
-  `;
-}
-
-function renderOrderControls(game, gameId) {
-  return `
-    <div class="mini-stage">
-      <p>${escapeHtml(game.message)}</p>
-      <div class="button-row">
-        <button data-mini-order="${gameId}" data-owner="player">玩家先手</button>
-        <button data-mini-order="${gameId}" data-owner="system">系统先手</button>
-      </div>
-    </div>
-  `;
-}
-
 function renderMiniDifficultyControls(gameId) {
   const activeDifficulty = getMiniGameDifficulty(gameId);
   return `
@@ -2165,6 +2155,11 @@ function renderMiniDifficultyControls(gameId) {
         .join("")}
     </div>
   `;
+}
+
+function renderMiniResult(game) {
+  if (!game.result) return "";
+  return `<div class="mini-result ${game.result.type}">${escapeHtml(game.result.text)}</div>`;
 }
 
 function renderThirtyNineCards(cards, owner) {
@@ -2202,20 +2197,17 @@ function groupThirtyNineDeck(deck) {
 
 function renderThirtyNineGame() {
   const game = miniGameState.thirtyNine;
-  if (game.phase === "coinPick") return renderCoinControls(game, "thirtyNine");
-  if (game.phase === "orderPick") return renderOrderControls(game, "thirtyNine");
-
   const tableTotal = totalThirtyNineTable(game);
   const groupedDeck = groupThirtyNineDeck(game.deck);
   return `
     <div class="mini-stage">
       <div class="mini-status">
-        <span>${game.coinResult ? `硬币：${coinLabel(game.coinResult)}` : "硬币未掷"}</span>
         <span>${game.currentTurn ? `当前：${ownerLabel(game.currentTurn)}` : "本局结束"}</span>
         <span>剩余 ${game.deck.length} 张</span>
         <span>桌面总点数 ${tableTotal}</span>
       </div>
       <p>${escapeHtml(game.message)}</p>
+      ${renderMiniResult(game)}
       <section>
         <h3>公共桌面</h3>
         ${renderThirtyNineCards(game.tableCards.map((entry) => ({
@@ -2294,24 +2286,23 @@ function renderDavinciSystemCardButton(card) {
 function renderDavinciGuessControls() {
   const game = miniGameState.davinci;
   if (game.phase !== "guessing" || game.currentTurn !== "player") return "";
+  const selectedCard = game.systemCards.find((card) => card.id === game.selectedTargetId);
+  const selectedColor = selectedCard ? davinciColorLabel(selectedCard.color) : "先选择暗牌";
   return `
     <div class="guess-panel">
       <label>
-        颜色
-        <select id="davinci-guess-color">
-          <option value="white">白色</option>
-          <option value="black">黑色</option>
-        </select>
-      </label>
-      <label>
-        数字
+        牌面
         <select id="davinci-guess-value">
           ${Array.from({ length: 12 }, (_, value) => `<option value="${value}">${value}</option>`).join("")}
           <option value="wild">万能牌</option>
         </select>
       </label>
+      <div class="guess-color-hint">
+        <span>颜色</span>
+        <strong>${selectedColor}</strong>
+      </div>
       <button data-davinci-guess ${game.systemCards.some((card) => !card.revealed) ? "" : "disabled"}>猜测选中的牌</button>
-      <button data-davinci-end-turn ${game.hasGuessedThisTurn ? "" : "disabled"}>结束回合</button>
+      <button data-davinci-end-turn>跳过</button>
     </div>
   `;
 }
@@ -2335,17 +2326,14 @@ function renderDavinciWildcardInsert() {
 
 function renderDavinciGame() {
   const game = miniGameState.davinci;
-  if (game.phase === "coinPick") return renderCoinControls(game, "davinci");
-  if (game.phase === "orderPick") return renderOrderControls(game, "davinci");
-
   return `
     <div class="mini-stage">
       <div class="mini-status">
-        <span>${game.coinResult ? `硬币：${coinLabel(game.coinResult)}` : "硬币未掷"}</span>
         <span>${game.currentTurn ? `当前：${ownerLabel(game.currentTurn)}` : "本局结束"}</span>
         <span>牌堆 ${game.deck.length} 张</span>
       </div>
       <p>${escapeHtml(game.message)}</p>
+      ${renderMiniResult(game)}
       <div class="code-board">
         <section>
           <h3>系统牌列</h3>
@@ -2469,12 +2457,14 @@ function handleClick(event) {
 
   if (target.dataset.miniOpen !== undefined) {
     miniGamesOpen = true;
+    scheduleMiniGameStart(activeMiniGame);
     render();
   } else if (target.dataset.miniClose !== undefined) {
     miniGamesOpen = false;
     render();
   } else if (target.dataset.miniGame) {
     activeMiniGame = target.dataset.miniGame;
+    scheduleMiniGameStart(activeMiniGame);
     render();
   } else if (target.dataset.miniDifficulty) {
     setMiniGameDifficulty(target.dataset.miniDifficulty, target.dataset.difficulty);
@@ -2482,19 +2472,8 @@ function handleClick(event) {
   } else if (target.dataset.miniReset) {
     miniGameState[target.dataset.miniReset] =
       target.dataset.miniReset === "thirtyNine" ? createThirtyNineGame() : createDavinciGame();
+    scheduleMiniGameStart(target.dataset.miniReset);
     render();
-  } else if (target.dataset.miniCoin) {
-    if (target.dataset.miniCoin === "thirtyNine") {
-      pickThirtyNineCoin(target.dataset.side);
-    } else {
-      pickDavinciCoin(target.dataset.side);
-    }
-  } else if (target.dataset.miniOrder) {
-    if (target.dataset.miniOrder === "thirtyNine") {
-      chooseThirtyNineOrder(target.dataset.owner);
-    } else {
-      chooseDavinciOrder(target.dataset.owner);
-    }
   } else if (target.dataset.thirtyCard) {
     chooseThirtyNineCard(target.dataset.thirtyCard);
   } else if (target.dataset.davinciInsert) {
@@ -2504,13 +2483,12 @@ function handleClick(event) {
     render();
   } else if (target.dataset.davinciGuess !== undefined) {
     const selectedTargetId = miniGameState.davinci.selectedTargetId;
-    const color = document.querySelector("#davinci-guess-color")?.value;
     const value = document.querySelector("#davinci-guess-value")?.value;
     if (!selectedTargetId) {
       showToast("请先选择一张系统暗牌。");
       return;
     }
-    guessDavinciSystemCard(selectedTargetId, color, value);
+    guessDavinciSystemCard(selectedTargetId, value);
   } else if (target.dataset.davinciEndTurn !== undefined) {
     endDavinciPlayerTurn();
   } else if (target.dataset.tab) {
