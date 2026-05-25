@@ -904,11 +904,31 @@ function randomItem(items) {
   return items[Math.floor(Math.random() * items.length)];
 }
 
+const MINI_GAME_DIFFICULTIES = {
+  easy: "简单",
+  normal: "普通",
+  hard: "困难",
+};
+
 function createMiniGameState() {
   return {
+    difficulty: {
+      thirtyNine: "normal",
+      davinci: "normal",
+    },
     thirtyNine: createThirtyNineGame(),
     davinci: createDavinciGame(),
   };
+}
+
+function getMiniGameDifficulty(gameId) {
+  return miniGameState.difficulty?.[gameId] || "normal";
+}
+
+function setMiniGameDifficulty(gameId, difficulty) {
+  if (!MINI_GAME_DIFFICULTIES[difficulty]) return;
+  if (!miniGameState.difficulty) miniGameState.difficulty = {};
+  miniGameState.difficulty[gameId] = difficulty;
 }
 
 function createThirtyNineDeck() {
@@ -1098,23 +1118,32 @@ function chooseThirtyNineCard(cardId) {
 }
 
 function chooseThirtyNineSystemCard(game) {
+  const difficulty = getMiniGameDifficulty("thirtyNine");
   const tableTotal = totalThirtyNineTable(game);
   const winningCard = game.deck.find((card) => tableTotal + card.value === 39);
-  if (winningCard) return winningCard;
+  if (winningCard && (difficulty !== "easy" || Math.random() >= 0.35)) return winningCard;
 
   const blockingCard = game.deck.find((card) => tableTotal + card.value > 39);
-  if (blockingCard) return blockingCard;
+  if (difficulty === "normal" && blockingCard) return blockingCard;
 
   const safeCards = game.deck.filter((card) => tableTotal + card.value <= 39);
   if (safeCards.length > 0) {
-    return [...safeCards].sort((a, b) => {
+    const optimalSafeCard = [...safeCards].sort((a, b) => {
       const aDistance = 39 - (tableTotal + a.value);
       const bDistance = 39 - (tableTotal + b.value);
       return aDistance - bDistance || b.value - a.value;
     })[0];
+
+    if (difficulty === "easy" && safeCards.length > 1 && Math.random() < 0.62) {
+      const nonOptimalCards = safeCards.filter((card) => card.id !== optimalSafeCard.id);
+      return randomItem(nonOptimalCards);
+    }
+
+    return optimalSafeCard;
   }
 
-  return game.deck[0];
+  if (difficulty === "hard" || difficulty === "normal") return game.deck[0];
+  return randomItem(game.deck);
 }
 
 function playThirtyNineSystemTurn() {
@@ -1361,9 +1390,19 @@ function availableDavinciGuesses() {
   return guesses;
 }
 
+function davinciGuessFromCard(card) {
+  return {
+    color: card.color,
+    value: card.wildcard ? "wild" : String(card.value),
+  };
+}
+
 function chooseDavinciSystemGuess(game) {
   const hiddenCards = game.playerCards.filter((card) => !card.revealed);
   if (hiddenCards.length === 0) return null;
+
+  const difficulty = getMiniGameDifficulty("davinci");
+  if (difficulty === "easy" && Math.random() < 0.38) return null;
 
   const knownIds = new Set([
     ...game.systemCards.map((card) => card.id),
@@ -1376,6 +1415,34 @@ function chooseDavinciSystemGuess(game) {
     return !knownIds.has(id);
   });
   const target = randomItem(hiddenCards);
+
+  if (difficulty === "easy") {
+    if (Math.random() < 0.16) {
+      return { target, ...davinciGuessFromCard(target) };
+    }
+    if (!target.wildcard && Math.random() < 0.35) {
+      const sameValueCandidate = candidates.find(
+        (guess) => !guess.wildcard && guess.value === target.value,
+      );
+      if (sameValueCandidate) {
+        return {
+          target,
+          color: sameValueCandidate.color,
+          value: String(sameValueCandidate.value),
+        };
+      }
+    }
+    const guess = randomItem(candidates);
+    return {
+      target,
+      color: guess.color,
+      value: guess.wildcard ? "wild" : String(guess.value),
+    };
+  }
+
+  if (difficulty === "hard" && Math.random() < 0.62) {
+    return { target, ...davinciGuessFromCard(target) };
+  }
 
   if (target.wildcard && Math.random() < 0.32) {
     return { target, color: target.color, value: "wild" };
@@ -1425,7 +1492,8 @@ function playDavinciSystemTurn() {
   const guess = chooseDavinciSystemGuess(game);
   if (!guess) {
     game.currentTurn = "player";
-    game.message = `${drawnMessage}。系统无法继续猜测，轮到你。`;
+    const hasHiddenPlayerCards = game.playerCards.some((card) => !card.revealed);
+    game.message = `${drawnMessage}。系统${hasHiddenPlayerCards ? "跳过猜测" : "无法继续猜测"}，轮到你。`;
     beginDavinciPlayerTurn();
     render();
     return;
@@ -2077,6 +2145,28 @@ function renderOrderControls(game, gameId) {
   `;
 }
 
+function renderMiniDifficultyControls(gameId) {
+  const activeDifficulty = getMiniGameDifficulty(gameId);
+  return `
+    <div class="mini-difficulty" aria-label="系统难度">
+      <span>系统难度</span>
+      ${Object.entries(MINI_GAME_DIFFICULTIES)
+        .map(
+          ([difficulty, label]) => `
+            <button
+              class="${activeDifficulty === difficulty ? "active" : ""}"
+              data-mini-difficulty="${gameId}"
+              data-difficulty="${difficulty}"
+            >
+              ${label}
+            </button>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderThirtyNineCards(cards, owner) {
   if (cards.length === 0) return `<p class="mini-empty">尚未选牌</p>`;
   return `
@@ -2292,6 +2382,7 @@ function renderMiniGamesPanel() {
           <button class="${activeMiniGame === "thirtyNine" ? "active" : ""}" data-mini-game="thirtyNine">39点</button>
           <button class="${activeMiniGame === "davinci" ? "active" : ""}" data-mini-game="davinci">达芬奇密码</button>
         </div>
+        ${renderMiniDifficultyControls(activeMiniGame)}
         ${activeMiniGame === "thirtyNine" ? renderThirtyNineGame() : renderDavinciGame()}
         <div class="button-row mini-tools">
           <button data-mini-reset="${activeMiniGame}">重新开始本局</button>
@@ -2384,6 +2475,9 @@ function handleClick(event) {
     render();
   } else if (target.dataset.miniGame) {
     activeMiniGame = target.dataset.miniGame;
+    render();
+  } else if (target.dataset.miniDifficulty) {
+    setMiniGameDifficulty(target.dataset.miniDifficulty, target.dataset.difficulty);
     render();
   } else if (target.dataset.miniReset) {
     miniGameState[target.dataset.miniReset] =

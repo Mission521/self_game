@@ -460,6 +460,32 @@ input {
   font-weight: 800;
 }
 
+.mini-difficulty {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.mini-difficulty span {
+  color: #4a544a;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.mini-difficulty button {
+  min-height: 34px;
+  padding: 6px 12px;
+}
+
+.mini-difficulty .active {
+  border-color: #365b48;
+  background: #20342b;
+  color: #fffaf0;
+  font-weight: 800;
+}
+
 .mini-stage {
   display: grid;
   gap: 16px;
