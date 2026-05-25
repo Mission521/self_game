@@ -1147,9 +1147,16 @@ function scoreThirtyNineHardCard(game, card) {
 function chooseThirtyNineHardCard(game) {
   const safeCards = game.deck.filter((card) => totalThirtyNineTable(game) + card.value <= 39);
   const candidates = safeCards.length > 0 ? safeCards : game.deck;
-  return [...candidates].sort(
-    (a, b) => scoreThirtyNineHardCard(game, b) - scoreThirtyNineHardCard(game, a),
-  )[0];
+  const scoredCards = candidates
+    .map((card) => ({ card, score: scoreThirtyNineHardCard(game, card) }))
+    .sort((a, b) => b.score - a.score);
+  const bestScore = scoredCards[0]?.score ?? 0;
+  const earlyGame = totalThirtyNineTable(game) <= 10;
+  const closeCandidates = scoredCards.filter((entry, index) => {
+    const tolerance = earlyGame ? 900 : 160;
+    return index < (earlyGame ? 3 : 2) && bestScore - entry.score <= tolerance;
+  });
+  return randomItem(closeCandidates.length > 0 ? closeCandidates : scoredCards).card;
 }
 
 function chooseThirtyNineClosestSafeCard(game) {
@@ -1164,11 +1171,50 @@ function chooseThirtyNineClosestSafeCard(game) {
   return randomItem(scoredCards.filter((entry) => entry.distance === bestDistance)).card;
 }
 
+function chooseThirtyNineEarlyCard(game, difficulty) {
+  const tableTotal = totalThirtyNineTable(game);
+  if (tableTotal > 10) return null;
+
+  const safeCards = game.deck.filter((card) => tableTotal + card.value <= 39);
+  if (safeCards.length === 0) return null;
+
+  const ranges = {
+    easy: [2, 8],
+    normal: [5, 8],
+    hard: [6, 8],
+  };
+  const [minValue, maxValue] = ranges[difficulty] || ranges.normal;
+  const preferredCards = safeCards.filter((card) => card.value >= minValue && card.value <= maxValue);
+  if (preferredCards.length === 0) return null;
+
+  if (difficulty === "hard") {
+    const scoredValues = [...new Set(preferredCards.map((card) => card.value))]
+      .map((value) => {
+        const card = preferredCards.find((item) => item.value === value);
+        return { value, score: scoreThirtyNineHardCard(game, card) };
+      })
+      .sort((a, b) => b.score - a.score);
+    const bestScore = scoredValues[0]?.score ?? 0;
+    const closeStrongValues = scoredValues.filter(
+      (entry, index) => index < 3 && bestScore - entry.score <= 1800,
+    );
+    const value = randomItem(
+      closeStrongValues.length > 0 ? closeStrongValues : scoredValues.slice(0, 1),
+    ).value;
+    return randomItem(preferredCards.filter((card) => card.value === value));
+  }
+
+  return randomItem(preferredCards);
+}
+
 function chooseThirtyNineSystemCard(game) {
   const difficulty = getMiniGameDifficulty("thirtyNine");
   const tableTotal = totalThirtyNineTable(game);
   const winningCard = game.deck.find((card) => tableTotal + card.value === 39);
   if (winningCard && (difficulty !== "easy" || Math.random() >= 0.35)) return winningCard;
+
+  const earlyCard = chooseThirtyNineEarlyCard(game, difficulty);
+  if (earlyCard && (difficulty !== "easy" || Math.random() >= 0.22)) return earlyCard;
 
   if (difficulty === "hard") return chooseThirtyNineHardCard(game);
 
@@ -1877,11 +1923,49 @@ function saveAndRender() {
   render();
 }
 
+function getScrollSnapshot() {
+  return {
+    windowX: window.scrollX,
+    windowY: window.scrollY,
+    containers: [".mini-panel", ".cheat-panel"]
+      .map((selector) => {
+        const element = document.querySelector(selector);
+        if (!element) return null;
+        return {
+          selector,
+          left: element.scrollLeft,
+          top: element.scrollTop,
+        };
+      })
+      .filter(Boolean),
+  };
+}
+
+function restoreScrollSnapshot(snapshot) {
+  if (!snapshot) return;
+  const restore = () => {
+    const maxWindowX = Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
+    const maxWindowY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    window.scrollTo(
+      Math.min(snapshot.windowX, maxWindowX),
+      Math.min(snapshot.windowY, maxWindowY),
+    );
+    snapshot.containers.forEach(({ selector, left, top }) => {
+      const element = document.querySelector(selector);
+      if (!element) return;
+      element.scrollLeft = Math.min(left, Math.max(0, element.scrollWidth - element.clientWidth));
+      element.scrollTop = Math.min(top, Math.max(0, element.scrollHeight - element.clientHeight));
+    });
+  };
+  window.requestAnimationFrame(restore);
+}
+
 function resetSave() {
   const confirmed = window.confirm("确定要清空当前存档吗？");
   if (!confirmed) return;
   state = createDefaultSave();
-  saveAndRender();
+  saveGame();
+  render({ preserveScroll: false });
 }
 
 function exportSave() {
@@ -1905,7 +1989,8 @@ function importSave(code) {
     }
     state = normalizeSave(parsed);
     addLog("存档导入成功。");
-    saveAndRender();
+    saveGame();
+    render({ preserveScroll: false });
   } catch {
     showToast("存档码无效，导入失败。");
   }
@@ -2462,7 +2547,8 @@ function renderLog() {
   `;
 }
 
-function render() {
+function render({ preserveScroll = true } = {}) {
+  const scrollSnapshot = preserveScroll ? getScrollSnapshot() : null;
   const unlockedChapter = getUnlockedChapter();
   app.innerHTML = `
     <main class="shell">
@@ -2523,6 +2609,7 @@ function render() {
       ${renderMiniGamesPanel()}
     </main>
   `;
+  restoreScrollSnapshot(scrollSnapshot);
 }
 
 function handleClick(event) {
@@ -2532,7 +2619,7 @@ function handleClick(event) {
   if (target.dataset.miniOpen !== undefined) {
     miniGamesOpen = true;
     scheduleMiniGameStart(activeMiniGame);
-    render();
+    render({ preserveScroll: false });
   } else if (target.dataset.miniClose !== undefined) {
     miniGamesOpen = false;
     render();
@@ -2620,4 +2707,4 @@ app.addEventListener("input", handleInput);
 window.addEventListener("keydown", handleKeydown);
 
 saveGame();
-render();
+render({ preserveScroll: false });
